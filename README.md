@@ -301,3 +301,19 @@ Before running the deploy Playbook, consider installing all required roles on th
 
 For the next steps, we are going to look at managing Jenkins build logs in a dockerized environment.
 <img src="flow2stackjenkinselk1.png" style="float: left; margin-right: 10px;" />
+
+The idea with ELK stack is to collect logs with Filebeat (or any other *beat), parse, filter logs with Logstash and send them to Elasticsearch for persistence. Then, the logs view view will be available in Kibana.
+
+On top of that, because Logstash is a heavyweight JRuby app on JVM, you either skip it or use a way smaller application called Filebeat, which is a Logstash log forwarder. All it does is collecting the logs to send them to Logstash for further processing.
+
+In case you don’t have any filtering and parsing requirements, Logstash can be skipped altogether. Instead,  Filebeat’s elastic output can be used to send the logs directly to Elasticsearch.
+
+In our example, it won't be the case to run  Filebeat in a separate container. But, it will be used instead a custom Jenkins image with preinstalled Filebeat. 
+
+So, a summary of what we are going to look at today:
+<ol>
+<li>Configure and run Logstash in a Docker container.</li>
+<li>Configure and run Elasticsearch in a Docker container.</li>
+<li>Configure and run Kibana in a Docker container.</li>
+<li>Run Jenkins with preinstalled Filebeat to send the logs into ELK.</li>
+</ol>
