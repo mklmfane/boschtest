@@ -317,3 +317,6 @@ So, a summary of what we are going to look at today:
 <li>Configure and run Kibana in a Docker container.</li>
 <li>Run Jenkins with preinstalled Filebeat to send the logs into ELK.</li>
 </ol>
+
+1. Configure and Run Logstash in a Docker Container
+We can docker-compose file called docker-compose-elk.yml to add all the containers related to ELK.
