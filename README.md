@@ -40,3 +40,259 @@ Demo environments should do the following pipeline, though real-world prod syste
 <img src="diagram.png"
      alt="Markdown Monster icon"
      style="float: left; margin-right: 10px;" />
+
+Pipeline Flow:
+
+The process starts by pulling the application source code from Github.
+Project version is updated according to the build number. 
+
+The webhook triggers the build process of the jenkins pipeline anytime when a code commit occurs.  
+
+
+After updating the project’s version, Jenkins starts building the source code using Maven.
+After a successful compilation, the pipeline will perform unit tests. If nothing goes wrong during the unit tests, the pipeline flow initiates the integration tests.
+The test framework creates all the infrastructure needed for the tests: an in-memory database with test data and a small web server to deploy the application.
+The integration tests are considered a success when all requests were validated against the application deployed in the test environment.
+The output from unit and integration tests is a coverage report, which will be one of the artifacts used by Sonar server to generate quality metrics. The other one is the application source code. If the quality gate defined in the Sonar server is not met, the pipeline flow will fail.
+If everything is okay, the flow stops its execution and waits for approval. The Jenkins server provides an interface for someone with the right permissions to manually promote the build.
+
+
+
+
+The pipeline will executes the flow and uploads the compiled artefact to the Nexus or JFrog repo.  Now we have a new app snapshot which can be deployed. 
+Ansible now enters the picture.
+
+The pipeline flow sets the required parameters such as the compiled artefact URL and the target host to execute the Ansible Playbook afterward. The Playbook is used to automate all target host configuration. In this many environments we can use this to install Java and to prepare the environment to receive the Spring Boot Application as a service. The Playbook is going to install the application as a service and will poll its HTTP port until it receives a valid response to make sure the deployment was successful.
+ 
+
+After the Ansible Playbook execution, the last step could be to send a notification to every stakeholder regarding the results of the new deployment via email or slack.
+Infrastructure provisioning
+
+Ansible roles that could automate the actors in a typical design as given in this example including a Sonar and Jenkins server could lead to the following Playbook:
+
+---
+
+- name: Deploy Jenkins CI
+
+hosts: jenkins_server
+
+remote_user: vagrant
+
+become: yes
+
+ 
+
+roles:
+
+  - geerlingguy.repo-epel
+
+  - geerlingguy.jenkins
+
+  - geerlingguy.git
+
+  - tecris.maven
+
+  - geerlingguy.ansible
+
+ 
+
+- name: Deploy Nexus Server
+
+hosts: nexus_server
+
+remote_user: vagrant
+
+become: yes
+
+ 
+
+roles:
+
+  - geerlingguy.java
+
+  - savoirfairelinux.nexus3-oss
+
+ 
+
+- name: Deploy Sonar Server
+
+hosts: sonar_server
+
+remote_user: vagrant
+
+become: yes
+
+ 
+
+roles:
+
+  - wtanaka.unzip
+
+  - zanini.sonar
+
+ 
+
+- name: On Premises CentOS
+
+hosts: app_server
+
+remote_user: vagrant
+
+become: yes
+
+ 
+
+roles:
+
+  - jenkins-keys-config
+
+ 
+
+Group roles together to provide a desired infrastructure, example Jenkins’ provision:
+
+- name: Deploy Jenkins CI
+
+hosts: jenkins_server
+
+remote_user: vagrant
+
+become: yes
+
+ 
+
+roles:
+
+  - geerlingguy.repo-epel
+
+  - geerlingguy.jenkins
+
+  - geerlingguy.git
+
+  - tecris.maven
+
+  - geerlingguy.ansible
+
+ 
+
+The above defines a host group where Jenkins is deployed and describes the role used to deploy the Jenkins server.  For instance, we may need the EPEL repository for the CentOS to be enabled, the Jenkins installation itself and GIT, Maven and Ansible which are all required for the pipeline. With barely 11 lines of code, we have a Jenkins server up and running prepared to start our CI/CD process.
+
+To get this infrastructure ready, we took the advantage of the integration between Vagrant and Ansible.  With a simple “vagrant up” on the Vagrant file directory, we have the lab environment ready.
+
+Application deployment
+
+The pipeline has been designed to prepare the application binaries, now called “artifact”, and to upload them in Nexus. The artifact can be reached in Nexus by an URL usually called Artifact URL. Ansible is also part of the pipeline and will receive the Artifact URL as the input for deployment. Thus, Ansible will be responsible not only for the deployment but also for the machine provisioning.
+
+Ansible Playbook deploys our application on the target host:
+
+---
+
+- name: Install Java
+
+hosts: app_server
+
+become: yes
+
+become_user: root
+
+roles:
+
+  - geerlingguy.java
+
+ 
+
+- name: Download Application from Repo
+
+hosts: app_server
+
+tasks:
+
+  - get_url:
+
+      force: yes
+
+      url: "{{ lookup('env','ARTIFACT_URL') }}"
+
+      dest: "/tmp/{{ lookup('env','APP_NAME') }}.jar"
+
+  - stat:
+
+      path: "/tmp/{{ lookup('env','APP_NAME') }}.jar"
+
+ 
+
+- name: Setup Spring Boot
+
+hosts: app_server
+
+become: yes
+
+become_user: root
+
+roles:
+
+  - { role: pellepelster.springboot-role,
+
+      spring_boot_file: "{{ lookup('env','APP_NAME') }}.jar",
+
+      spring_boot_file_source: "/tmp/{{ lookup('env','APP_NAME') }}.jar",
+
+      spring_boot_application_id: "{{ lookup('env','APP_NAME') }}"
+
+  }
+
+ 
+
+This Playbook will only perform three tasks:
+
+Install Java based on a pre-defined role from Ansible Galaxy
+Download the binaries from the Nexus repository based on the input from Jenkins
+Set up the application as a Spring boot service again using a role from the community
+ 
+
+The Playbook is in the application repository, which means that the application knows how to deploy itself. By using the Ansible Jenkins plugin, it is possible to call a Playbook from the pipeline by setting the variables required to execute it.
+
+def artifactUrl = "http://${NEXUS_URL}/repository/ansible-meetup/${repoPath}/${version}/${pom.artifactId}-${version}.jar"
+
+ 
+
+withEnv(["ARTIFACT_URL=${artifactUrl}", "APP_NAME=${pom.artifactId}"]) {
+
+  echo "The URL is ${env.ARTIFACT_URL} and the app name is ${env.APP_NAME}"
+
+ 
+
+  // install galaxy roles
+
+  sh "ansible-galaxy install -vvv -r provision/requirements.yml -p provision/roles/"      
+
+ 
+
+  ansiblePlaybook colorized: true,
+
+  credentialsId: 'ssh-jenkins',
+
+  limit: "${HOST_PROVISION}",
+
+  installation: 'ansible',
+
+  inventory: 'provision/inventory.ini',
+
+  playbook: 'provision/playbook.yml',
+
+  sudo: true,
+
+  sudoUser: 'jenkins'
+
+}
+
+ 
+
+To make this happen, the target host must have the Jenkins user and its keys properly configured. This was done while provisioning the lab.  All target hosts are CentOS machines with the Jenkins user and its key already set up.  There’s a Ansible role to configure the user and its keys. This has been done since it is required in order to have Ansible access the host.
+
+Productivity Enhancers
+
+Ansible with Jenkins:
+
+Prepare the target host with the Jenkins user and its SSH keys. The target host could be a pod on Red Hat OpenShift, a Virtual Machine, bare metal, etc. Doesn’t matter. Ansible needs a way to connect to the host to perform its magic.
+Set the Jenkins user’s private key on the credentials repository. That way you can easily retrieve it on the pipeline code and send it as a parameter to the Ansible plugin.
+Before running the deploy Playbook, consider installing all required roles on the Jenkins server. This could be done by performing a good old shell script run on the requirements file during the pipeline execution: “sh "ansible-galaxy install -vvv -r provision/requirements.yml -p provision/roles/"”.

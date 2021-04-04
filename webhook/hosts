@@ -1,0 +1,2 @@
+[webhook]
+webhookserver ansible_host=192.168.156.2 ansible_ssh_port=22
