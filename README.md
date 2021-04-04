@@ -1,4 +1,4 @@
-Infrastructure of testlab
+Infrastructure of the testlab
 
 Jenkins machine is used to orchestrate the CI/CD pipeline flow
 Ansible Tower was used in the lab to create all infrastructure for this lab to provision the application
