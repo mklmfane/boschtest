@@ -386,3 +386,4 @@ Kibana can be added in the stack in the next steps.
     depends_on:
      - elasticsearch
 
+Now, you access http://localhost:5601 on the elasticsearch machine to check Kibana.
