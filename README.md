@@ -37,9 +37,7 @@ A CI/CD POC with the aforementioned components contains the following architectu
 <h2>Pipeline Flow example</h2>
 
 Demo environments should do the following pipeline, though real-world prod systems may have slightly more complicated flows depending on the use case, type of apps, existing legacy systems, etc.
-<img src="diagram.png"
-     alt="Markdown Monster icon"
-     style="float: left; margin-right: 10px;" />
+<img src="diagram.png" style="float: left; margin-right: 10px;" />
 
 Pipeline Flow:
 
@@ -176,7 +174,10 @@ roles:
 
 The above defines a host group where Jenkins is deployed and describes the role used to deploy the Jenkins server.  For instance, we may need the EPEL repository for the CentOS to be enabled, the Jenkins installation itself and GIT, Maven and Ansible which are all required for the pipeline. With barely 11 lines of code, we have a Jenkins server up and running prepared to start our CI/CD process.
 
-To get this infrastructure ready, we took the advantage of the integration between Vagrant and Ansible.  With a simple “vagrant up” on the Vagrant file directory, we have the lab environment ready.
+To get this infrastructure ready, we took the advantage of the integration between Vagrant and Ansible.  With a simple “vagrant up” on the Vagrant file directory, we have the lab environment ready for the test. 
+
+
+
 
 Application deployment
 
@@ -296,3 +297,7 @@ Ansible with Jenkins:
 Prepare the target host with the Jenkins user and its SSH keys. The target host could be a pod on Red Hat OpenShift, a Virtual Machine, bare metal, etc. Doesn’t matter. Ansible needs a way to connect to the host to perform its magic.
 Set the Jenkins user’s private key on the credentials repository. That way you can easily retrieve it on the pipeline code and send it as a parameter to the Ansible plugin.
 Before running the deploy Playbook, consider installing all required roles on the Jenkins server. This could be done by performing a good old shell script run on the requirements file during the pipeline execution: “sh "ansible-galaxy install -vvv -r provision/requirements.yml -p provision/roles/"”.
+
+
+For the next steps, we are going to look at managing Jenkins build logs in a dockerized environment.
+<img src="flow2stackjenkinselk1.png" style="float: left; margin-right: 10px;" />
