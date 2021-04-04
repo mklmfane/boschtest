@@ -320,3 +320,69 @@ So, a summary of what we are going to look at today:
 
 1. Configure and Run Logstash in a Docker Container
 We can docker-compose file called docker-compose-elk.yml to add all the containers related to ELK.
+
+Now we need to configure Logstash in logstash.conf.
+
+With the current configuration for file logstash.conf, all it does is to show the logs while displaying the output so we can check if it is actually working.
+
+Then, jenkins can run the new stack through the command from the file download.sh
+docker-compose -f docker-compose-elk.yml -f
+
+2. Configure and Run Elasticsearch in a Docker Container
+The next step is adding Elasticsearch to the stack:
+version: "3.1"
+
+services:
+
+  logstash:
+    image: logstash:2
+    volumes:
+          - ./:/config
+    command: logstash -f /config/logstash.conf
+    links:
+     - elasticsearch
+    depends_on:
+     - elasticsearch
+
+  elasticsearch:
+     image: elasticsearch:5.5.2
+     ports:
+      - "9200:9200"
+     volumes:
+      - "./en_data/en_data:/usr/share/elasticsearch/data/"
+
+
+  kibana:
+    image: kibana:5
+    ports:
+     - "5601:5601"
+    links:
+     - elasticsearch
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+     - elasticsearch
+
+We also added links and dependency on Elastic to Logstash, so it can see it and wait for it as well. Now, we can directlysend messages to Elastic without requiring to configure Logstash based on the result from this output:
+
+input { beats {      port => 5044    }  }
+output {
+  stdout { codec => rubydebug }
+  elasticsearch { hosts => ["elasticsearch:9200"] }
+
+}
+
+3. Configure and Run Kibana in a Docker Container
+Kibana can be added in the stack in the next steps.
+
+  kibana:
+    image: kibana:5
+    ports:
+     - "5601:5601"
+    links:
+     - elasticsearch
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+     - elasticsearch
+
