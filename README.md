@@ -387,3 +387,26 @@ Kibana can be added in the stack in the next steps.
      - elasticsearch
 
 Now, you access http://localhost:5601 on the elasticsearch machine to check Kibana.
+
+4. Run Jenkins With Preinstalled Filebeat to Send the Logs Into ELK
+Create docker-compose.yml with the content as below for Jenkins:
+
+version: "3.1"
+
+services:
+  myjenkins:
+     jenkins:
+        build:
+            context: ./
+        restart: unless-stopped
+        volumes:
+            - ${HOST_DOCKER}:/var/run/docker.sock
+            - ${HOST_JENKINS_DATA}:/var/jenkins_home
+        ports:
+            - "${HOST_WWW}:8080"
+            - "${HOST_OTHER}:50000"
+    ports:
+     - "8080:8080"
+    volumes:
+     - "./jobs:/var/jenkins_home/jobs/"
+     - "./m2deps:/var/jenkins_home/.m2/repository/"
